@@ -1,6 +1,12 @@
 mod esc;
 mod buffer;
-use buffer::{Buffer, NORMAL_MODE, INSERT_MODE, COMMAND_MODE};
+use buffer::{
+    Buffer,
+    NORMAL_MODE,
+    NORMAL_PREFIX_MODE,
+    INSERT_MODE,
+    COMMAND_MODE,
+};
 use std::env;
 use std::io::{Read, Write};
 use std::fs;
@@ -18,26 +24,30 @@ const ESC: char = 0x1B as char;
 fn input_loop(buffer: &mut Buffer) {
     buffer.redraw();
 
+    // todo: read utf-8 characters instead of bytes
     for b in std::io::stdin().bytes() {
         let c = b.unwrap() as char;
 
         match buffer.mode {
             NORMAL_MODE => {
                 match c {
-                    'h' => {
-                        buffer.left();
-                    },
+                    // jumps
+                    // ---------------------------------------------------------
+                    'h' => { buffer.left(); },
+                    'l' => { buffer.right(); },
+                    'k' => { buffer.up(); },
+                    'j' => { buffer.down(); },
+                    '^' => { buffer.jump_line_start(); },
+                    '0' => { buffer.jump_line_start_abs(); },
+                    '$' => { buffer.jump_line_end_abs(); },
+                    'H' => { buffer.jump_top(); },
+                    'M' => { buffer.jump_middle(); },
+                    'L' => { buffer.jump_bottom(); },
 
-                    'l' => {
-                        buffer.right();
-                    },
-
-                    'k' => {
-                        buffer.up();
-                    },
-
-                    'j' => {
-                        buffer.down();
+                    // mode change
+                    // ---------------------------------------------------------
+                    ':' => {
+                        buffer.mode_command();
                     },
 
                     'i' => {
@@ -45,10 +55,7 @@ fn input_loop(buffer: &mut Buffer) {
                     },
 
                     'a' => {
-                        buffer.x = match buffer.line().len() {
-                            0 => 0,
-                            _ => buffer.x + 1,
-                        };
+                        buffer.add_x(1);
                         buffer.mode_insert();
                     },
 
@@ -58,9 +65,26 @@ fn input_loop(buffer: &mut Buffer) {
                     },
 
                     'A' => {
-                        buffer.jump_line_end();
+                        buffer.jump_line_end_abs();
                         buffer.x += 1;
                         buffer.mode_insert();
+                    },
+
+                    // modification
+                    // ---------------------------------------------------------
+                    'o' => {
+                        buffer.insert_line(buffer.y + 1);
+                        buffer.y += 1;
+                        buffer.x = 0;
+                        buffer.mode_insert();
+                        buffer.redraw();
+                    },
+
+                    'O' => {
+                        buffer.insert_line(buffer.y);
+                        buffer.x = 0;
+                        buffer.mode_insert();
+                        buffer.redraw();
                     },
 
                     'D' => {
@@ -92,21 +116,6 @@ fn input_loop(buffer: &mut Buffer) {
                         buffer.redraw();
                     },
 
-                    'o' => {
-                        buffer.insert_line(buffer.y + 1);
-                        buffer.y += 1;
-                        buffer.x = 0;
-                        buffer.mode_insert();
-                        buffer.redraw();
-                    },
-
-                    'O' => {
-                        buffer.insert_line(buffer.y);
-                        buffer.x = 0;
-                        buffer.mode_insert();
-                        buffer.redraw();
-                    },
-
                     's' => {
                         buffer.del();
                         buffer.mode_insert();
@@ -120,31 +129,29 @@ fn input_loop(buffer: &mut Buffer) {
                         buffer.redraw();
                     },
 
-                    '^' => {
-                        buffer.jump_line_start();
-                    },
-
-                    '$' => {
-                        buffer.jump_line_end();
-                    },
-
-                    '0' => {
-                        buffer.jump_line_start_abs();
-                    },
-
-                    '-' => {
-                        buffer.jump_line_end();
-                    },
-
-                    ':' => {
-                        buffer.mode_command();
-                    },
-
-                    'q' => {
-                        break;
+                    // modification with prefix
+                    // ---------------------------------------------------------
+                    'd' => {
+                        buffer.mode_normal_prefix();
+                        buffer.prefix('d');
+                        buffer.redraw();
                     },
 
                     _ => {}
+                }
+            },
+
+            NORMAL_PREFIX_MODE => {
+                match c {
+                    CTRL_C => {
+                        buffer.mode_normal();
+                        buffer.redraw();
+                    },
+
+                    _ => {
+                        buffer.prefix(c);
+                        buffer.redraw();
+                    },
                 }
             },
 
@@ -155,6 +162,7 @@ fn input_loop(buffer: &mut Buffer) {
                     },
 
                     TAB => {
+                        // tabs are 4 spaces--deal with it htaters
                         buffer.insert_string(&String::from("    "));
                         buffer.redraw();
                     },
@@ -179,7 +187,6 @@ fn input_loop(buffer: &mut Buffer) {
             COMMAND_MODE => {
                 match c {
                     CTRL_C => {
-                        buffer.command = String::from("");
                         buffer.mode_normal();
                         buffer.redraw();
                     },
@@ -188,6 +195,8 @@ fn input_loop(buffer: &mut Buffer) {
                         match buffer.command.as_str() {
                             "w" => {
                                 buffer.save();
+                                buffer.mode_normal();
+                                buffer.redraw();
                             },
                             "q" => {
                                 break;
@@ -211,8 +220,9 @@ fn input_loop(buffer: &mut Buffer) {
                 }
             },
 
-
-            _ => {}
+            _ => {
+                panic!("Unknown mode");
+            },
         }
     }
 }
