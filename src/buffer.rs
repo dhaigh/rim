@@ -1,15 +1,15 @@
-use crate::esc;
-use std::io::Write;
+use crate::util::{
+    BACKSPACE,
+    clear,
+    mv,
+    flush,
+};
 use std::fs;
 
 pub const NORMAL_MODE: char = 'N';
 pub const NORMAL_PREFIX_MODE: char = 'P';
 pub const INSERT_MODE: char = 'I';
 pub const COMMAND_MODE: char = 'C';
-
-fn flush() {
-    std::io::stdout().flush().expect("Couldn't flush stdout");
-}
 
 pub struct Buffer {
     // The changes to the current buffer are maintained in this string vec
@@ -271,9 +271,9 @@ impl Buffer {
     // draw commands
     // -------------------------------------------------------------------------
     pub fn redraw(&self) {
-        esc::clear();
+        clear();
         for (i, line) in self.lines.iter().enumerate() {
-            esc::mv(0, i);
+            mv(0, i);
             print!("{}", line);
             flush();
         }
@@ -284,7 +284,7 @@ impl Buffer {
     }
 
     fn draw_mode(&self) {
-        esc::mv(1, self.height - 2);
+        mv(1, self.height - 2);
         print!("{}", match self.mode {
             'N' | 'P' => "NORMAL ",
             'I'       => "INSERT ",
@@ -294,26 +294,37 @@ impl Buffer {
     }
 
     fn draw_prefix(&self) {
-        esc::mv(self.width - 10, self.height - 2);
+        mv(self.width - 10, self.height - 2);
         print!("{}", self.normal_prefix);
     }
 
     fn draw_command(&self) {
         if self.mode == COMMAND_MODE {
-            esc::mv(0, self.height - 1);
+            mv(0, self.height - 1);
             print!(":{}", self.command);
         }
     }
 
     fn mv(&self) {
-        esc::mv(self.x, self.y);
+        mv(self.x, self.y);
         flush();
     }
 
     // command mode
     // -------------------------------------------------------------------------
     pub fn type_command(&mut self, command_char: char) {
-        self.command.push_str(&command_char.to_string());
+        match command_char {
+            BACKSPACE => {
+                let len = self.command.len();
+                if len > 0 {
+                    self.command = self.command[..len - 1].to_owned();
+                }
+            },
+
+            _ => {
+                self.command.push_str(&command_char.to_string());
+            },
+        };
     }
 
     pub fn save(&self) {

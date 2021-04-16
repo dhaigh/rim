@@ -1,4 +1,13 @@
-mod esc;
+mod util;
+use util::{
+    CTRL_C,
+    TAB,
+    BACKSPACE,
+    ENTER,
+    ESC,
+    flush,
+};
+
 mod buffer;
 use buffer::{
     Buffer,
@@ -7,19 +16,10 @@ use buffer::{
     INSERT_MODE,
     COMMAND_MODE,
 };
+
 use std::env;
-use std::io::{Read, Write};
+use std::io::Read;
 use std::fs;
-
-fn flush() {
-    std::io::stdout().flush().expect("Couldn't flush stdout");
-}
-
-const CTRL_C: char = 0x03 as char;
-const TAB: char = 0x09 as char;
-const BACKSPACE: char = 0x7F as char;
-const ENTER: char = 0x0D as char;
-const ESC: char = 0x1B as char;
 
 fn input_loop(buffer: &mut Buffer) {
     buffer.redraw();
@@ -214,7 +214,7 @@ fn input_loop(buffer: &mut Buffer) {
                         buffer.redraw();
 
                         // todo: refactor
-                        esc::mv(buffer.command.len() + 1, buffer.height - 1);
+                        util::mv(buffer.command.len() + 1, buffer.height - 1);
                         flush();
                     },
                 }
